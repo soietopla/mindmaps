@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yichen's Workshop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #211D17;
+    --ink-2: #29241C;
+    --paper: #EDE6D6;
+    --paper-2: #E3D9BF;
+    --brass: #B8873D;
+    --brass-bright: #D6A554;
+    --rust: #9C4A36;
+    --text: #EDE6D6;
+    --text-dim: #9C9484;
+    --card-text: #2B2013;
+    --card-text-dim: #6B5F49;
+    --line: #40392E;
+  }
+  *{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; }
+  body{
+    margin:0;
+    background: var(--ink);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  /* faint grid texture, like a drafting board */
+  body::before{
+    content:'';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 42px 42px;
+    opacity: 0.18;
+    mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 20%, transparent 75%);
+  }
+
+  .wrap{
+    position: relative;
+    z-index: 1;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 96px 28px 80px;
+  }
+
+  .eyebrow{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--brass-bright);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+  .eyebrow::before{
+    content:'';
+    width: 22px; height: 1px;
+    background: var(--brass);
+  }
+
+  h1{
+    font-family: 'Fraunces', serif;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-size: clamp(40px, 7vw, 64px);
+    line-height: 1.04;
+    letter-spacing: -0.01em;
+    margin: 0 0 22px 0;
+    color: var(--paper);
+  }
+  h1 em{
+    font-style: italic;
+    font-weight: 400;
+    color: var(--brass-bright);
+  }
+
+  .lede{
+    font-size: 17px;
+    line-height: 1.65;
+    color: var(--text-dim);
+    max-width: 46ch;
+    margin: 0 0 56px 0;
+  }
+  .lede strong{ color: var(--text); font-weight: 500; }
+
+  .rule{
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 0 0 56px 0;
+  }
+
+  .log-heading{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 30px;
+  }
+
+  .entries{
+    display: flex;
+    flex-direction: column;
+    gap: 46px;
+  }
+
+  .entry{
+    opacity: 0;
+    transform: translateY(14px);
+    animation: rise 0.7s cubic-bezier(.22,.7,.3,1) forwards;
+  }
+  .entry:nth-child(1){ animation-delay: .05s; }
+  .entry:nth-child(2){ animation-delay: .16s; }
+  @keyframes rise{ to{ opacity:1; transform: translateY(0); } }
+
+  .entry-meta{
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    padding: 0 4px 10px 2px;
+  }
+  .entry-meta .num{ color: var(--brass-bright); }
+
+  .card{
+    position: relative;
+    background: var(--paper);
+    color: var(--card-text);
+    border-radius: 3px;
+    padding: 30px 32px 26px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.35), 0 14px 30px -14px rgba(0,0,0,.55);
+    transform: rotate(-0.6deg);
+    transition: transform .35s cubic-bezier(.22,.8,.3,1), box-shadow .35s ease;
+  }
+  .card:hover{
+    transform: rotate(0deg) translateY(-3px);
+    box-shadow: 0 2px 4px rgba(0,0,0,.4), 0 22px 40px -16px rgba(0,0,0,.6);
+  }
+
+  .pin{
+    position: absolute;
+    top: -11px;
+    right: 26px;
+    filter: drop-shadow(0 3px 3px rgba(0,0,0,.4));
+  }
+
+  .card h2{
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 25px;
+    margin: 2px 0 10px 0;
+    letter-spacing: -0.01em;
+  }
+  .card p{
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--card-text-dim);
+    margin: 0 0 20px 0;
+    max-width: 46ch;
+  }
+
+  .tags{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 22px;
+  }
+  .tag{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    color: var(--rust);
+    border: 1px solid #C9BB98;
+    background: #E6DCC2;
+    padding: 4px 9px;
+    border-radius: 999px;
+  }
+
+  .launch{
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--card-text);
+    text-decoration: none;
+    padding-bottom: 2px;
+    border-bottom: 1.5px solid var(--rust);
+    transition: gap .2s ease, color .2s ease;
+  }
+  .launch:hover{ gap: 11px; color: var(--rust); }
+
+  .entry.placeholder .card{
+    background: transparent;
+    border: 1.5px dashed var(--line);
+    box-shadow: none;
+    transform: rotate(0.5deg);
+    color: var(--text-dim);
+  }
+  .entry.placeholder .card:hover{ transform: rotate(0.5deg); box-shadow: none; }
+  .entry.placeholder h2{ color: var(--text-dim); font-weight: 500; }
+  .entry.placeholder p{ color: var(--text-dim); opacity: .7; margin-bottom: 0; }
+  .entry.placeholder .pin{ opacity: .35; }
+
+  footer{
+    margin-top: 80px;
+    padding-top: 26px;
+    border-top: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    letter-spacing: 0.03em;
+  }
+
+  @media (max-width: 520px){
+    .wrap{ padding: 64px 20px 60px; }
+    .card{ padding: 24px 22px 22px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .entry{ animation: none; opacity: 1; transform: none; }
+    .card{ transition: none; }
+    html{ scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="eyebrow">A build log</div>
+  <h1>Yichen&rsquo;s<br><em>Workshop</em></h1>
+  <p class="lede">
+    A running record of tools I&rsquo;ve built, each one <strong>live and usable</strong>,
+    not just written up. New entries get pinned here as they ship.
+  </p>
+
+  <hr class="rule">
+
+  <div class="log-heading">Entries — newest first</div>
+
+  <div class="entries">
+
+    <!--
+      TO ADD A NEW PROJECT: copy everything from the next <div class="entry">
+      down to its closing </div> (just above the ".entry placeholder" block),
+      paste it above the placeholder entry, and edit: the entry number/date,
+      the tag on the right, the title, description, tags, and the href on
+      the Launch link (point it at that project's HTML file).
+    -->
+    <div class="entry">
+      <div class="entry-meta">
+        <span><span class="num">Entry 01</span> · Aug 2026</span>
+        <span>Canvas tool</span>
+      </div>
+      <div class="card">
+        <svg class="pin" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="10" cy="8" r="6" fill="#B8873D"/>
+          <circle cx="10" cy="8" r="6" stroke="#7A5A25" stroke-width="1"/>
+          <rect x="9" y="13" width="2" height="6" rx="1" fill="#7A5A25"/>
+          <ellipse cx="8" cy="6" rx="1.8" ry="1.2" fill="#E6C98A" opacity="0.7"/>
+        </svg>
+        <h2>Mindmap</h2>
+        <p>A freeform idea-mapping canvas — draggable boxes, curved connectors that
+          route around each other, freehand drawing with a highlighter and eraser,
+          pan &amp; zoom, and autosave that follows you across machines.</p>
+        <div class="tags">
+          <span class="tag">canvas</span>
+          <span class="tag">drawing</span>
+          <span class="tag">autosave</span>
+        </div>
+        <a class="launch" href="mindmap.html">Launch <span>&rarr;</span></a>
+      </div>
+    </div>
+
+    <div class="entry placeholder">
+      <div class="entry-meta">
+        <span><span class="num">Entry 02</span> · —</span>
+        <span>In progress</span>
+      </div>
+      <div class="card">
+        <svg class="pin" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="10" cy="8" r="6" fill="#40392E"/>
+          <rect x="9" y="13" width="2" height="6" rx="1" fill="#40392E"/>
+        </svg>
+        <h2>Next tool</h2>
+        <p>Not started yet — this spot is reserved for whatever gets built next.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>yichen.online — updated by hand as new tools ship</footer>
+
+</div>
+
+</body>
+</html>
