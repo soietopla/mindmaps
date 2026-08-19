@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mindmap</title>
+<style>
+  :root{
+    --bg: #E7D9BE;
+    --bg-2: #DBC9A6;
+    --node-fill: #FBF6EA;
+    --node-border: #B7A183;
+    --node-border-active: #B5651D;
+    --text: #3B2F22;
+    --text-dim: #7A6A54;
+    --gold: #B5651D;
+    --teal: #4F7A6B;
+    --line: #A28F6C;
+    --toolbar-scale: 1;
+    --sidebar-scale: 1;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background: var(--bg);
+    font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive, sans-serif;
+    overflow:hidden;
+    user-select:none;
+  }
+  body{
+    display:flex;
+    flex-direction:column;
+  }
+  #toolbar{
+    position:relative; z-index:5;
+    display:flex; align-items:center;
+    gap: calc(10px * var(--toolbar-scale));
+    padding: calc(12px * var(--toolbar-scale)) calc(16px * var(--toolbar-scale));
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--node-border);
+  }
+  #toolbar-resize{
+    height: 6px;
+    cursor: row-resize;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--node-border);
+    position: relative;
+    flex: none;
+  }
+  #toolbar-resize::after{
+    content:'';
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width: 34px; height: 3px;
+    border-radius: 3px;
+    background: var(--node-border);
+  }
+  #toolbar-resize:hover::after{ background: var(--gold); }
+  #toolbar .brand{
+    font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive, sans-serif;
+    font-style: normal;
+    font-weight: 700;
+    color: var(--gold);
+    font-size: calc(17px * var(--toolbar-scale));
+    margin-right: 6px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+  .btn{
+    background: var(--node-fill);
+    color: var(--text);
+    border: 1px solid var(--node-border);
+    padding: calc(7px * var(--toolbar-scale)) calc(13px * var(--toolbar-scale));
+    border-radius: 7px;
+    font-size: calc(13px * var(--toolbar-scale));
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    white-space: nowrap;
+  }
+  .btn:hover{ border-color: var(--gold); background: #F0E5CC; }
+  .hint{
+    margin-left:auto;
+    color: var(--text-dim);
+    font-size: calc(12px * var(--toolbar-scale));
+    max-width: 460px;
+    text-align:right;
+    line-height:1.4;
+  }
+  #main-area{
+    display:flex;
+    flex: 1;
+    min-height: 0;
+  }
+  #canvas-wrap{
+    position:relative;
+    flex: 1;
+    height: 100%;
+    overflow:hidden;
+    cursor: grab;
+    background:
+      radial-gradient(circle at 18% 22%, #DFCDA655 0%, transparent 45%),
+      radial-gradient(circle at 82% 78%, #D3BE9666 0%, transparent 50%),
+      radial-gradient(circle at 60% 15%, #C9AF8022 0%, transparent 40%);
+  }
+  #canvas-wrap.panning{ cursor: grabbing; }
+  #world{
+    position:absolute;
+    inset:0;
+    transform-origin: 0 0;
+  }
+  #dots{
+    position:absolute; inset:0;
+    background-image: radial-gradient(#C9B892 1px, transparent 1px);
+    background-size: 26px 26px;
+    opacity:0.6;
+  }
+  svg#lines{
+    position:absolute; inset:0; width:100%; height:100%;
+    pointer-events:none;
+    overflow: visible;
+  }
+  svg#lines path.hit{
+    pointer-events: stroke;
+    cursor: pointer;
+  }
+  svg#lines path.visible{
+    fill:none;
+    stroke: var(--line);
+    pointer-events:none;
+  }
+  svg#lines circle.mid{
+    fill: var(--teal);
+    opacity: 0.9;
+  }
+  #nodes{
+    position:absolute; inset:0;
+  }
+  .node{
+    position:absolute;
+    min-width: 60px;
+    max-width: 380px;
+    padding: 0;
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.35;
+    text-align:center;
+    cursor: grab;
+    transform: translate(-50%, -50%);
+    overflow: visible;
+  }
+  .node-shape{
+    position:absolute;
+    inset: 0;
+    background: var(--node-fill);
+    border: 1.5px solid var(--node-border);
+    border-radius: 14px;
+    box-shadow: 0 4px 14px #3B2F2233;
+    transition: border-color .15s, box-shadow .15s;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .node-content{
+    position: relative;
+    z-index: 1;
+    padding: 10px 16px;
+    width: 100%;
+    height: 100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .node.sized .node-content{
+    overflow-y: auto;
+  }
+  .node:hover .node-shape{
+    border-color: var(--node-border-active);
+    box-shadow: 0 4px 18px #3B2F2244, 0 0 0 3px #B5651D22;
+  }
+  .node.dragging{ cursor:grabbing; z-index: 20; }
+  .node.selected .node-shape{
+    box-shadow: 0 0 0 3px var(--gold), 0 4px 18px #3B2F2244;
+  }
+  .node.root .node-shape{
+    border-color: var(--gold);
+    background: linear-gradient(160deg, #FBF6EA, #F0E5CC);
+  }
+  .node.root{
+    font-weight: 600;
+  }
+  .node textarea{
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    text-align:center;
+    resize:none;
+    line-height:1.35;
+  }
+  .node-toolbar{
+    position:absolute;
+    top: -37px;
+    left: 50%;
+    transform: translateX(-50%);
+    display:flex;
+    align-items: flex-start;
+    gap:8px;
+    padding-bottom: 14px;
+    box-sizing: border-box;
+    opacity:0;
+    pointer-events:none;
+    transition: opacity .15s;
+  }
+  .node:hover .node-toolbar{ opacity:1; pointer-events:auto; }
+  .node.force-toolbar .node-toolbar{ opacity:1; pointer-events:auto; }
+  .handle{
+    width: 27px; height:27px;
+    border-radius:50%;
+    background: var(--teal);
+    border: 3px solid var(--bg);
+    cursor: crosshair;
+    transition: transform .15s;
+    flex: none;
+  }
+  .handle:hover{ transform: scale(1.15); }
+  .del{
+    width: 27px; height:27px;
+    border-radius:50%;
+    background: #3a2030;
+    color:#e88;
+    border: 1px solid #6a3040;
+    font-size: 16px;
+    line-height:25px;
+    text-align:center;
+    cursor:pointer;
+    transition: transform .15s, background .15s;
+    flex: none;
+  }
+  .del:hover{ background:#5a2434; color:#fff; transform: scale(1.15); }
+  .fmt-btn{
+    width: 27px; height:27px;
+    border-radius:50%;
+    font-size: 15px;
+    line-height:24px;
+    text-align:center;
+    cursor:pointer;
+    transition: transform .15s;
+    border: 1px solid var(--node-border);
+    background: var(--node-fill);
+    color: var(--text);
+    flex: none;
+  }
+  .fmt-btn:hover{ transform: scale(1.15); }
+  .bold-btn{ font-weight: 800; }
+  .label.is-bold{ font-weight: 800; }
+  .highlight-wrap{
+    position:relative;
+    width:27px; height:27px;
+    flex:none;
+  }
+  .highlight-picker{
+    position:absolute;
+    top:100%;
+    left:50%;
+    transform:translateX(-50%);
+    padding-top:8px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .15s;
+    z-index:30;
+  }
+  .highlight-wrap:hover .highlight-picker{ opacity:1; pointer-events:auto; }
+  .highlight-picker-inner{
+    display:flex;
+    gap:6px;
+    background: var(--node-fill);
+    border: 1px solid var(--node-border);
+    border-radius: 11px;
+    padding: 6px;
+    box-shadow: 0 4px 14px #3B2F2244;
+  }
+  .color-swatch{
+    width:22px; height:22px;
+    border-radius:50%;
+    border: 1.5px solid var(--node-border);
+    cursor:pointer;
+    transition: transform .12s, border-color .12s;
+    flex:none;
+  }
+  #sidebar .color-swatch{
+    width: calc(22px * var(--sidebar-scale));
+    height: calc(22px * var(--sidebar-scale));
+  }
+  .color-swatch:hover{ transform: scale(1.15); }
+  .color-swatch.active{ border-color: var(--gold); border-width: 2.5px; }
+  .color-swatch.none-swatch{
+    background: var(--node-fill);
+    position:relative;
+  }
+  .color-swatch.none-swatch::after{
+    content:'';
+    position:absolute; inset:4px;
+    background: linear-gradient(45deg, transparent 46%, #B5651D 46%, #B5651D 54%, transparent 54%);
+  }
+  .shape-wrap{
+    position:relative;
+    width:27px; height:27px;
+    flex:none;
+  }
+  .shape-picker{
+    position:absolute;
+    top:100%;
+    left:50%;
+    transform:translateX(-50%);
+    padding-top:8px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .15s;
+    z-index:30;
+  }
+  .shape-wrap:hover .shape-picker{ opacity:1; pointer-events:auto; }
+  .shape-picker-inner{
+    display:flex;
+    gap:6px;
+    background: var(--node-fill);
+    border: 1px solid var(--node-border);
+    border-radius: 11px;
+    padding: 6px;
+    box-shadow: 0 4px 14px #3B2F2244;
+  }
+  .shape-swatch{
+    width:22px; height:22px;
+    background: var(--node-border);
+    border: 1.5px solid var(--node-border);
+    cursor:pointer;
+    transition: transform .12s, border-color .12s;
+    flex:none;
+  }
+  .shape-swatch:hover{ transform: scale(1.15); }
+  .shape-swatch.active{ border-color: var(--gold); border-width: 2.5px; }
+  .resize-handle{
+    position:absolute;
+    right: -3px; bottom: -3px;
+    width: 14px; height:14px;
+    cursor: nwse-resize;
+    opacity: 0;
+    transition: opacity .15s;
+    background:
+      linear-gradient(135deg, transparent 0 40%, var(--node-border-active) 40% 55%, transparent 55% 100%),
+      linear-gradient(135deg, transparent 0 65%, var(--node-border-active) 65% 80%, transparent 80% 100%);
+  }
+  .node:hover .resize-handle{ opacity:0.85; }
+  #sidebar-resize{
+    width: 6px;
+    flex: none;
+    cursor: col-resize;
+    background: var(--bg-2);
+    border-left: 1px solid var(--node-border);
+    position: relative;
+  }
+  #sidebar-resize::after{
+    content:'';
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    width: 3px; height: 34px;
+    border-radius: 3px;
+    background: var(--node-border);
+  }
+  #sidebar-resize:hover::after{ background: var(--gold); }
+  #sidebar{
+    width: 206px;
+    flex: none;
+    height: 100%;
+    background: var(--bg-2);
+    padding: calc(18px * var(--sidebar-scale)) calc(14px * var(--sidebar-scale));
+    display:flex;
+    flex-direction:column;
+    gap: calc(10px * var(--sidebar-scale));
+    overflow-y:auto;
+    overflow-x:hidden;
+  }
+  #sidebar h3{
+    margin: 0 0 2px 0;
+    font-size: calc(13px * var(--sidebar-scale));
+    color: var(--text);
+    font-weight: 700;
+  }
+  #sidebar .sidebar-note{
+    font-size: calc(11.5px * var(--sidebar-scale));
+    color: var(--text-dim);
+    line-height: 1.4;
+    margin-bottom: 6px;
+  }
+  #sidebar .btn{
+    padding: calc(7px * var(--sidebar-scale)) calc(13px * var(--sidebar-scale));
+    font-size: calc(13px * var(--sidebar-scale));
+  }
+  .style-btn{
+    display:flex;
+    align-items:center;
+    gap: calc(10px * var(--sidebar-scale));
+    padding: calc(8px * var(--sidebar-scale)) calc(10px * var(--sidebar-scale));
+    border-radius: 8px;
+    border: 1px solid var(--node-border);
+    background: var(--node-fill);
+    color: var(--text);
+    font-size: calc(13px * var(--sidebar-scale));
+    cursor: pointer;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .style-btn:hover{ border-color: var(--gold); }
+  .style-btn.active{
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px #B5651D22;
+    font-weight: 600;
+  }
+  .style-btn svg{ flex: none; }
+  #canvas-wrap.draw-mode{ cursor: crosshair; }
+  #canvas-wrap.draw-mode.eraser-active{ cursor: cell; }
+  svg#ink{
+    position:absolute; inset:0; width:100%; height:100%;
+    pointer-events:none;
+    overflow: visible;
+  }
+  svg#ink.active{ pointer-events:auto; }
+  .btn.active{
+    border-color: var(--gold);
+    background: #F0E5CC;
+    box-shadow: 0 0 0 2px #B5651D22;
+    font-weight: 600;
+  }
+  .pen-color-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap: calc(6px * var(--sidebar-scale));
+  }
+  .pen-width-row{
+    display:flex;
+    gap: calc(6px * var(--sidebar-scale));
+  }
+  .pen-width-btn{
+    flex:1;
+    min-width: 0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 8px 1px;
+    border-radius: 8px;
+    border: 1px solid var(--node-border);
+    background: var(--node-fill);
+    cursor: pointer;
+    transition: border-color .15s, box-shadow .15s;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .pen-width-btn:hover{ border-color: var(--gold); }
+  .pen-width-btn.active{
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px #B5651D22;
+  }
+  .pen-width-btn span{
+    display:block;
+    border-radius: 999px;
+    background: var(--text);
+  }
+  .sidebar-divider{
+    height:1px;
+    background: var(--node-border);
+    margin: 4px 0 8px 0;
+  }
+  #confirmOverlay{
+    position:fixed; inset:0;
+    background: #2A2115aa;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index: 1000;
+  }
+  #confirmOverlay.open{ display:flex; }
+  #confirmBox{
+    background: var(--node-fill);
+    border: 1.5px solid var(--node-border);
+    border-radius: 14px;
+    padding: 22px 24px;
+    max-width: 320px;
+    box-shadow: 0 12px 34px #00000055;
+    text-align:center;
+  }
+  #confirmBox p{
+    margin: 0 0 18px 0;
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  #confirmBox .confirm-actions{
+    display:flex;
+    gap:10px;
+    justify-content:center;
+  }
+  #confirmBox .btn.danger{
+    background: #5a2434;
+    border-color: #6a3040;
+    color: #f5dede;
+  }
+  #confirmBox .btn.danger:hover{ background: #6f2c40; }
+  .empty-msg{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    color: var(--text-dim);
+    font-size: 14px;
+    text-align:center;
+    pointer-events:none;
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <span class="brand">Mindmap</span>
+  <button class="btn" id="addBtn">+ Add idea</button>
+  <button class="btn" id="drawToggleBtn">✏️ Draw</button>
+  <button class="btn" id="clearBtn">Clear board</button>
+  <button class="btn" id="resetViewBtn">Reset view</button>
+  <span id="saveState" style="color:var(--teal); font-size:12px;">Loading…</span>
+  <span class="hint">Double-click empty space to add a node · drag empty canvas to pan around · scroll to zoom · click a node to select it, then press Tab to add a connected child · Ctrl+Z (Cmd+Z) to undo · in Draw mode, pick Pen, Highlighter, or Eraser from the sidebar · hover a node for its toolbar (delete, bold, highlight, shape, connect) · drag the bottom-right corner to resize · double-click text to rename</span>
+</div>
+<div id="toolbar-resize" title="Drag to resize toolbar"></div>
+
+<div id="main-area">
+  <div id="canvas-wrap">
+    <div id="dots"></div>
+    <div id="world">
+      <svg id="lines"></svg>
+      <div id="nodes"></div>
+      <svg id="ink"></svg>
+    </div>
+    <div class="empty-msg" id="emptyMsg">Double-click anywhere to start mapping your ideas</div>
+  </div>
+  <div id="sidebar-resize" title="Drag to resize sidebar"></div>
+  <div id="sidebar">
+    <h3>Line style</h3>
+    <div class="sidebar-note">Applies to new connections. Shift-click an existing line to restyle it.</div>
+    <div id="styleList"></div>
+
+    <div class="sidebar-divider"></div>
+
+    <h3>Pen</h3>
+    <div class="sidebar-note">Turn on Draw in the toolbar, then click and drag on the canvas to sketch.</div>
+    <div id="toolRow" class="pen-width-row"></div>
+    <div id="penColorLabel" class="sidebar-note" style="margin:2px 0 -2px 0;">Color</div>
+    <div id="penColorRow" class="pen-color-row"></div>
+    <div id="penWidthLabel" class="sidebar-note" style="margin:2px 0 -2px 0;">Thickness</div>
+    <div id="penWidthRow" class="pen-width-row"></div>
+    <button class="btn" id="undoStrokeBtn">Undo stroke</button>
+    <button class="btn" id="clearDrawBtn">Clear drawings</button>
+  </div>
+</div>
+
+<div id="confirmOverlay">
+  <div id="confirmBox">
+    <p id="confirmMessage">Are you sure?</p>
+    <div class="confirm-actions">
+      <button class="btn" id="confirmCancelBtn">Cancel</button>
+      <button class="btn danger" id="confirmOkBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!--
+  ============================================================================
+  STORAGE SETUP — read this if you're running this file outside Claude.ai
+  ============================================================================
+  Inside a Claude.ai artifact, `window.storage` is provided automatically and
+  the board autosaves there. Outside Claude (e.g. hosted on GitHub Pages),
+  that API doesn't exist, so this block provides a drop-in replacement:
+
+    1. If you fill in FIREBASE_CONFIG below with your own Firebase project's
+       config, the board will autosave to Firebase Realtime Database — this
+       means it syncs across every machine/browser you open this file on.
+    2. If you leave FIREBASE_CONFIG blank, it automatically falls back to
+       your browser's localStorage — autosave still works, but only on this
+       one browser/device (it won't follow you to another machine).
+
+  See the chat for a step-by-step guide to creating a free Firebase project.
+-->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script>
+(function(){
+  // Paste your own Firebase project's config here (see chat for setup steps).
+  // Leave apiKey as "" to use the local-only fallback instead.
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAttOdIGUR5zuA2fpdYWvVBo-mzBFqViTM",
+    authDomain: "mindmap-ae0db.firebaseapp.com",
+    databaseURL: "https://mindmap-ae0db-default-rtdb.firebaseio.com",
+    projectId: "mindmap-ae0db",
+    
+  };
+
+  if (window.storage) return; // already running inside a Claude.ai artifact — nothing to do
+
+  if (FIREBASE_CONFIG.apiKey) {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    const db = firebase.database();
+    const ref = (key) => db.ref('mindmapBoards/' + key);
+
+    window.storage = {
+      async get(key){
+        const snap = await ref(key).get();
+        return snap.exists() ? { key, value: snap.val() } : null;
+      },
+      async set(key, value){
+        await ref(key).set(value);
+        return { key, value };
+      },
+      async delete(key){
+        await ref(key).remove();
+        return { key, deleted: true };
+      },
+      async list(prefix){
+        const snap = await db.ref('mindmapBoards').get();
+        const all = snap.exists() ? Object.keys(snap.val()) : [];
+        return { keys: prefix ? all.filter(k => k.startsWith(prefix)) : all };
+      }
+    };
+    console.log('Mindmap storage: using Firebase (syncs across machines).');
+  } else {
+    // Local-only fallback so the board still autosaves even with no Firebase config.
+    const PREFIX = 'mindmap_';
+    window.storage = {
+      async get(key){
+        const v = localStorage.getItem(PREFIX + key);
+        return v !== null ? { key, value: v } : null;
+      },
+      async set(key, value){
+        localStorage.setItem(PREFIX + key, value);
+        return { key, value };
+      },
+      async delete(key){
+        localStorage.removeItem(PREFIX + key);
+        return { key, deleted: true };
+      },
+      async list(prefix){
+        const keys = Object.keys(localStorage)
+          .filter(k => k.startsWith(PREFIX))
+          .map(k => k.slice(PREFIX.length))
+          .filter(k => !prefix || k.startsWith(prefix));
+        return { keys };
+      }
+    };
+    console.log('Mindmap storage: using localStorage (this device only). Add a Firebase config to sync across machines.');
+  }
+})();
+</script>
+
+<script>
+(function(){
+  const wrap = document.getElementById('canvas-wrap');
+  const world = document.getElementById('world');
+  const nodesLayer = document.getElementById('nodes');
+  const svg = document.getElementById('lines');
+  const ink = document.getElementById('ink');
+  const emptyMsg = document.getElementById('emptyMsg');
+  const toolbar = document.getElementById('toolbar');
+  const sidebar = document.getElementById('sidebar');
+  const toolbarResize = document.getElementById('toolbar-resize');
+  const sidebarResize = document.getElementById('sidebar-resize');
+
+  let nodes = [];   // {id, x, y, text, root}
+  let links = [];   // {a, b}
+  let strokes = [];  // {color, width, points:[{x,y}]}
+  let idCounter = 1;
+  let panX = 0, panY = 0;
+  let zoom = 1;
+  let selectedNodeId = null;
+  let hoverStickyId = null; // keeps a node's toolbar visible across a re-render triggered by its own buttons
+
+  // resizable toolbar / sidebar
+  const SIDEBAR_BASE = 206, SIDEBAR_MIN = 150, SIDEBAR_MAX = 420;
+  const TOOLBAR_SCALE_MIN = 0.55, TOOLBAR_SCALE_MAX = 1.3;
+  let sidebarWidth = SIDEBAR_BASE;
+  let toolbarScale = 1;
+
+  // undo history
+  let undoStack = [];
+  const UNDO_LIMIT = 50;
+  function pushHistory(){
+    undoStack.push(JSON.stringify({ nodes, links, strokes, idCounter }));
+    if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+  }
+  function undo(){
+    if(undoStack.length === 0) return;
+    const prev = JSON.parse(undoStack.pop());
+    nodes = prev.nodes;
+    links = prev.links;
+    strokes = prev.strokes;
+    idCounter = prev.idCounter;
+    selectedNodeId = null;
+    render();
+    saveState();
+  }
+  const ZOOM_MIN = 0.3, ZOOM_MAX = 2.5;
+
+  const penColors = ['#3B2F22', '#B5651D', '#4F7A6B', '#8AA6E8', '#C0392B'];
+  const penWidths = [2, 4, 7];
+  const ERASER_RADII = [14, 22, 34];
+  let drawMode = false;
+  let penTool = 'pen'; // 'pen' | 'highlighter' | 'eraser'
+  let currentPenColor = penColors[0];
+  let currentPenWidth = penWidths[1];
+  let currentEraserSize = ERASER_RADII[1];
+
+  function strokeVisuals(tool, color, width){
+    if(tool === 'highlighter'){
+      return { stroke: color, strokeWidth: width * 3 + 8, opacity: 0.38, blend: 'multiply', cap: 'butt' };
+    }
+    return { stroke: color, strokeWidth: width, opacity: 1, blend: 'normal', cap: 'round' };
+  }
+
+  function applyPan(){
+    world.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  }
+
+  function applySidebarWidth(){
+    sidebar.style.width = sidebarWidth + 'px';
+    const scale = Math.max(0.75, Math.min(1.35, sidebarWidth / SIDEBAR_BASE));
+    sidebar.style.setProperty('--sidebar-scale', scale);
+  }
+
+  function applyToolbarScale(){
+    toolbar.style.setProperty('--toolbar-scale', toolbarScale);
+  }
+
+  const palette = ['#E8B96A', '#5FBFB3', '#8AA6E8', '#D98C8C', '#B79FE8', '#7FC28C'];
+  const highlightColors = [null, '#F4D35E', '#F2A65A', '#8FD19E', '#8FC1E3', '#E39AAC'];
+  const STORAGE_KEY = 'board';
+
+  const LINE_STYLES = {
+    solid:  { label: 'Solid',  dash: null,    width: 1.6 },
+    bold:   { label: 'Bold',   dash: null,    width: 3.4 },
+    dashed: { label: 'Dashed', dash: '9 6',   width: 1.8 },
+    dotted: { label: 'Dotted', dash: '2 6',   width: 2.4 }
+  };
+  let currentStyleKey = 'bold';
+
+  const SHAPES = {
+    rounded: { label: 'Rounded',  borderRadius: '14px', clipPath: 'none', forceSquare: false },
+    square:  { label: 'Square',   borderRadius: '4px',  clipPath: 'none', forceSquare: true, scale: 1 },
+    circle:  { label: 'Circle',   borderRadius: '50%',  clipPath: 'none', forceSquare: true, scale: 1 },
+    oval:    { label: 'Oval',     borderRadius: '50%',  clipPath: 'none', forceSquare: false },
+    diamond: { label: 'Diamond',  borderRadius: '0',    clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)', forceSquare: true, scale: 1.6 }
+  };
+
+  function buildSidebar(){
+    const list = document.getElementById('styleList');
+    list.innerHTML = '';
+    Object.keys(LINE_STYLES).forEach(key => {
+      const style = LINE_STYLES[key];
+      const btn = document.createElement('div');
+      btn.className = 'style-btn' + (key === currentStyleKey ? ' active' : '');
+      btn.dataset.key = key;
+
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(svgNS, 'svg');
+      svg.setAttribute('width', '40');
+      svg.setAttribute('height', '14');
+      const line = document.createElementNS(svgNS, 'line');
+      line.setAttribute('x1', '2'); line.setAttribute('y1', '7');
+      line.setAttribute('x2', '38'); line.setAttribute('y2', '7');
+      line.setAttribute('stroke', 'var(--gold)');
+      line.setAttribute('stroke-width', style.width);
+      if(style.dash) line.setAttribute('stroke-dasharray', style.dash);
+      line.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(line);
+      btn.appendChild(svg);
+
+      const label = document.createElement('span');
+      label.textContent = style.label;
+      btn.appendChild(label);
+
+      btn.addEventListener('click', () => {
+        currentStyleKey = key;
+        buildSidebar();
+      });
+      list.appendChild(btn);
+    });
+  }
+
+  function colorFor(id){ return palette[id % palette.length]; }
+
+  function buildPenControls(){
+    wrap.classList.toggle('eraser-active', penTool === 'eraser');
+    const toolRow = document.getElementById('toolRow');
+    toolRow.innerHTML = '';
+    [
+      { key: 'pen', label: 'Pen' },
+      { key: 'highlighter', label: 'Highlighter' },
+      { key: 'eraser', label: 'Eraser' }
+    ].forEach(t => {
+      const btn = document.createElement('div');
+      btn.className = 'pen-width-btn' + (penTool === t.key ? ' active' : '');
+      btn.style.fontSize = 'calc(11px * var(--sidebar-scale))';
+      btn.style.flex = `${t.label.length} 1 0`;
+      btn.textContent = t.label;
+      btn.addEventListener('click', () => {
+        penTool = t.key;
+        buildPenControls();
+      });
+      toolRow.appendChild(btn);
+    });
+
+    const colorLabel = document.getElementById('penColorLabel');
+    const colorRow = document.getElementById('penColorRow');
+    const widthLabel = document.getElementById('penWidthLabel');
+    const widthRow = document.getElementById('penWidthRow');
+
+    if(penTool === 'eraser'){
+      colorLabel.style.display = 'none';
+      colorRow.style.display = 'none';
+      widthLabel.textContent = 'Eraser size';
+      widthRow.innerHTML = '';
+      ERASER_RADII.forEach(size => {
+        const btn = document.createElement('div');
+        btn.className = 'pen-width-btn' + (size === currentEraserSize ? ' active' : '');
+        const dot = document.createElement('span');
+        const d = 6 + size * 0.4;
+        dot.style.width = `calc(${d}px * var(--sidebar-scale))`;
+        dot.style.height = `calc(${d}px * var(--sidebar-scale))`;
+        dot.style.background = 'var(--text-dim)';
+        btn.appendChild(dot);
+        btn.addEventListener('click', () => {
+          currentEraserSize = size;
+          buildPenControls();
+        });
+        widthRow.appendChild(btn);
+      });
+      return;
+    }
+
+    colorLabel.style.display = '';
+    colorRow.style.display = '';
+    widthLabel.textContent = 'Thickness';
+
+    colorRow.innerHTML = '';
+    penColors.forEach(color => {
+      const sw = document.createElement('div');
+      sw.className = 'color-swatch' + (color === currentPenColor ? ' active' : '');
+      sw.style.background = color;
+      sw.title = color;
+      sw.addEventListener('click', () => {
+        currentPenColor = color;
+        buildPenControls();
+      });
+      colorRow.appendChild(sw);
+    });
+
+    widthRow.innerHTML = '';
+    penWidths.forEach(w => {
+      const btn = document.createElement('div');
+      btn.className = 'pen-width-btn' + (w === currentPenWidth ? ' active' : '');
+      const dot = document.createElement('span');
+      dot.style.width = `calc(${w + 4}px * var(--sidebar-scale))`;
+      dot.style.height = `calc(${w + 4}px * var(--sidebar-scale))`;
+      btn.appendChild(dot);
+      btn.addEventListener('click', () => {
+        currentPenWidth = w;
+        buildPenControls();
+      });
+      widthRow.appendChild(btn);
+    });
+  }
+
+  let saveTimer = null;
+  let saveRetryTimer = null;
+  let saveFailureLogged = false;
+
+  function buildBoardPayload(){
+    return JSON.stringify({ nodes, links, idCounter, panX, panY, zoom, strokes, sidebarWidth, toolbarScale });
+  }
+
+  async function attemptSave(retryCount){
+    try{
+      await window.storage.set(STORAGE_KEY, buildBoardPayload(), false);
+      setSavedIndicator('saved');
+      saveFailureLogged = false;
+    }catch(err){
+      if(!saveFailureLogged){
+        console.warn('Board save failed (will keep retrying quietly):', err && err.message ? err.message : err);
+        saveFailureLogged = true;
+      }
+      setSavedIndicator('error');
+      // back off and retry a couple of times in case it's a transient server hiccup
+      if(retryCount < 2){
+        clearTimeout(saveRetryTimer);
+        saveRetryTimer = setTimeout(() => attemptSave(retryCount + 1), 2000 * (retryCount + 1));
+      }
+    }
+  }
+
+  function saveState(){
+    clearTimeout(saveTimer);
+    clearTimeout(saveRetryTimer);
+    setSavedIndicator('saving');
+    saveTimer = setTimeout(() => attemptSave(0), 800);
+  }
+
+  function setSavedIndicator(state){
+    const el = document.getElementById('saveState');
+    if(!el) return;
+    if(state === 'saving') el.textContent = 'Saving…';
+    else if(state === 'saved') el.textContent = 'Saved';
+    else el.textContent = 'Save failed, retrying…';
+  }
+
+  // custom confirm dialog — window.confirm() can be silently blocked inside a sandboxed artifact frame
+  const confirmOverlay = document.getElementById('confirmOverlay');
+  const confirmMessage = document.getElementById('confirmMessage');
+  const confirmOkBtn = document.getElementById('confirmOkBtn');
+  const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+  let confirmResolver = null;
+
+  function showConfirm(message){
+    confirmMessage.textContent = message;
+    confirmOverlay.classList.add('open');
+    return new Promise(resolve => { confirmResolver = resolve; });
+  }
+  function closeConfirm(result){
+    confirmOverlay.classList.remove('open');
+    if(confirmResolver){ confirmResolver(result); confirmResolver = null; }
+  }
+  confirmOkBtn.addEventListener('click', () => closeConfirm(true));
+  confirmCancelBtn.addEventListener('click', () => closeConfirm(false));
+  confirmOverlay.addEventListener('click', (e) => { if(e.target === confirmOverlay) closeConfirm(false); });
+
+  async function loadState(){
+    try{
+      const result = await window.storage.get(STORAGE_KEY, false);
+      if(result && result.value){
+        const data = JSON.parse(result.value);
+        nodes = data.nodes || [];
+        links = data.links || [];
+        strokes = (data.strokes || []).map(s => ({ ...s, points: simplifyPoints(s.points, 2.5) }));
+        idCounter = data.idCounter || (nodes.reduce((m,n) => Math.max(m, n.id), 0) + 1);
+        panX = data.panX || 0;
+        panY = data.panY || 0;
+        zoom = data.zoom || 1;
+        sidebarWidth = data.sidebarWidth || SIDEBAR_BASE;
+        toolbarScale = data.toolbarScale || 1;
+        applyPan();
+        return true;
+      }
+    }catch(err){
+      // no saved board yet, or fetch failed — fall through to seed default
+    }
+    return false;
+  }
+
+  function addNode(x, y, text, root, skipHistory){
+    if(!skipHistory) pushHistory();
+    const n = { id: idCounter++, x, y, text: text || 'New idea', root: !!root, bold: false, highlight: null, width: null, height: null, shape: 'rounded' };
+    nodes.push(n);
+    selectedNodeId = n.id;
+    render();
+    saveState();
+    return n;
+  }
+
+  function removeNode(id){
+    pushHistory();
+    nodes = nodes.filter(n => n.id !== id);
+    links = links.filter(l => l.a !== id && l.b !== id);
+    if(selectedNodeId === id) selectedNodeId = null;
+    render();
+    saveState();
+  }
+
+  function addLink(a, b, skipHistory){
+    if(a === b) return;
+    if(links.some(l => (l.a===a&&l.b===b) || (l.a===b&&l.b===a))) return;
+    if(!skipHistory) pushHistory();
+    links.push({a, b, style: currentStyleKey});
+    render();
+    saveState();
+  }
+
+  function removeLink(a, b){
+    pushHistory();
+    links = links.filter(l => !((l.a===a&&l.b===b) || (l.a===b&&l.b===a)));
+    render();
+    saveState();
+  }
+
+  function getNode(id){ return nodes.find(n => n.id === id); }
+
+  let nodeSizes = {}; // id -> {w, h}, measured from the DOM each render
+
+  function otherNodesAsObstacles(excludeIdA, excludeIdB){
+    return nodes
+      .filter(o => o.id !== excludeIdA && o.id !== excludeIdB)
+      .map(o => ({
+        x: o.x, y: o.y,
+        _w: (nodeSizes[o.id] && nodeSizes[o.id].w) || 0,
+        _h: (nodeSizes[o.id] && nodeSizes[o.id].h) || 0
+      }));
+  }
+
+  // Liang-Barsky segment/rectangle intersection test
+  function segIntersectsRect(x1,y1,x2,y2, rx1,ry1,rx2,ry2){
+    let t0 = 0, t1 = 1;
+    const dx = x2 - x1, dy = y2 - y1;
+    const checks = [[-dx, x1-rx1], [dx, rx2-x1], [-dy, y1-ry1], [dy, ry2-y1]];
+    for(const [p, q] of checks){
+      if(p === 0){
+        if(q < 0) return false;
+      } else {
+        const r = q / p;
+        if(p < 0){ if(r > t1) return false; if(r > t0) t0 = r; }
+        else { if(r < t0) return false; if(r < t1) t1 = r; }
+      }
+    }
+    return true;
+  }
+
+  function pathBetween(n1, n2, obstacles){
+    const dx = n2.x - n1.x, dy = n2.y - n1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const midX = (n1.x + n2.x)/2, midY = (n1.y + n2.y)/2;
+    let offset = len * 0.06;
+    let dir = 1;
+
+    if(obstacles && obstacles.length){
+      let maxRequired = null, chosenSign = 1;
+      obstacles.forEach(o => {
+        if(!o._w || !o._h) return;
+        const hw = o._w/2, hh = o._h/2;
+        if(!segIntersectsRect(n1.x, n1.y, n2.x, n2.y, o.x-hw, o.y-hh, o.x+hw, o.y+hh)) return;
+        const cross = dx*(o.y - n1.y) - dy*(o.x - n1.x);
+        const perpDist = cross / len;
+        const nodeRadius = Math.hypot(hw, hh) + 22;
+        const required = nodeRadius - Math.abs(perpDist) + 26;
+        if(required > 0 && (maxRequired === null || required > maxRequired)){
+          maxRequired = required;
+          chosenSign = perpDist >= 0 ? -1 : 1;
+        }
+      });
+      if(maxRequired !== null){
+        offset = Math.max(offset, maxRequired * 2);
+        dir = chosenSign;
+      }
+    }
+
+    const ux = dy/len, uy = -dx/len;
+    const mx = midX + ux*offset*dir;
+    const my = midY + uy*offset*dir;
+    // the actual point ON the quadratic curve at t=0.5 (not the control point itself)
+    const dotX = n1.x*0.25 + mx*0.5 + n2.x*0.25;
+    const dotY = n1.y*0.25 + my*0.5 + n2.y*0.25;
+    return { d: `M ${n1.x} ${n1.y} Q ${mx} ${my} ${n2.x} ${n2.y}`, dotX, dotY };
+  }
+
+  function strokeToPath(points){
+    return points.map((p, i) => (i === 0 ? 'M' : 'L') + ` ${p.x} ${p.y}`).join(' ');
+  }
+
+  // Collapses redundant close-together points from older/denser strokes so saved payloads stay small.
+  function simplifyPoints(points, minDist){
+    if(!points || points.length <= 2) return points;
+    const result = [points[0]];
+    for(let i = 1; i < points.length - 1; i++){
+      const last = result[result.length - 1];
+      if(Math.hypot(points[i].x - last.x, points[i].y - last.y) >= minDist) result.push(points[i]);
+    }
+    result.push(points[points.length - 1]);
+    return result;
+  }
+
+  // Removes only the portion of each stroke within `radius` of `pt`, splitting
+  // the rest into separate surviving strokes rather than deleting the whole thing.
+  function eraseNearPoint(pt, radius){
+    let changed = false;
+    const result = [];
+    strokes.forEach(s => {
+      const touches = s.points.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) <= radius);
+      if(!touches){ result.push(s); return; }
+      changed = true;
+      let run = [];
+      s.points.forEach(p => {
+        if(Math.hypot(p.x - pt.x, p.y - pt.y) <= radius){
+          if(run.length > 1) result.push({ tool: s.tool, color: s.color, width: s.width, points: run });
+          run = [];
+        } else {
+          run.push(p);
+        }
+      });
+      if(run.length > 1) result.push({ tool: s.tool, color: s.color, width: s.width, points: run });
+    });
+    if(changed) strokes = result;
+    return changed;
+  }
+
+  function renderInk(){
+    ink.innerHTML = '';
+    strokes.forEach(s => {
+      const v = strokeVisuals(s.tool || 'pen', s.color, s.width);
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', strokeToPath(s.points));
+      path.setAttribute('stroke', v.stroke);
+      path.setAttribute('stroke-width', v.strokeWidth);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-linecap', v.cap);
+      path.setAttribute('stroke-linejoin', 'round');
+      path.setAttribute('opacity', v.opacity);
+      path.style.mixBlendMode = v.blend;
+      ink.appendChild(path);
+    });
+  }
+
+  function render(){
+    emptyMsg.style.display = nodes.length ? 'none' : 'block';
+    renderInk();
+
+    // render nodes first so we can measure their real size for line routing
+    nodesLayer.innerHTML = '';
+    nodes.forEach(n => {
+      const shapeDef = SHAPES[n.shape] || SHAPES.rounded;
+      const el = document.createElement('div');
+      el.className = 'node' + (n.root ? ' root' : '') + (n.width || n.height ? ' sized' : '') + (n.id === selectedNodeId ? ' selected' : '') + (n.id === hoverStickyId ? ' force-toolbar' : '');
+      el.addEventListener('mouseenter', () => { hoverStickyId = n.id; });
+      el.addEventListener('mouseleave', () => { if(hoverStickyId === n.id) hoverStickyId = null; });
+      el.style.left = n.x + 'px';
+      el.style.top = n.y + 'px';
+      if(n.width){ el.style.width = n.width + 'px'; el.style.maxWidth = 'none'; }
+      if(n.height){ el.style.height = n.height + 'px'; }
+      el.dataset.id = n.id;
+
+      const shape = document.createElement('div');
+      shape.className = 'node-shape';
+      shape.style.borderColor = n.root ? 'var(--gold)' : colorFor(n.id) + '55';
+      shape.style.borderRadius = shapeDef.borderRadius;
+      shape.style.clipPath = shapeDef.clipPath;
+      if(n.highlight){
+        shape.style.background = n.highlight;
+      }
+      el.appendChild(shape);
+
+      const content = document.createElement('div');
+      content.className = 'node-content';
+      if(n.shape === 'diamond') content.style.padding = '28px';
+      el.appendChild(content);
+
+      const span = document.createElement('div');
+      span.className = 'label' + (n.bold ? ' is-bold' : '');
+      span.textContent = n.text;
+      content.appendChild(span);
+
+      const toolbar = document.createElement('div');
+      toolbar.className = 'node-toolbar';
+      el.appendChild(toolbar);
+
+      const del = document.createElement('div');
+      del.className = 'del';
+      del.textContent = '×';
+      del.title = 'Delete node';
+      del.addEventListener('mousedown', e => e.stopPropagation());
+      del.addEventListener('click', e => { e.stopPropagation(); removeNode(n.id); });
+      toolbar.appendChild(del);
+
+      const boldBtn = document.createElement('div');
+      boldBtn.className = 'fmt-btn bold-btn';
+      boldBtn.textContent = 'B';
+      boldBtn.title = 'Toggle bold';
+      boldBtn.addEventListener('mousedown', e => e.stopPropagation());
+      boldBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        pushHistory();
+        n.bold = !n.bold;
+        render();
+        saveState();
+      });
+      toolbar.appendChild(boldBtn);
+
+      const highlightWrap = document.createElement('div');
+      highlightWrap.className = 'highlight-wrap';
+      toolbar.appendChild(highlightWrap);
+
+      const highlightBtn = document.createElement('div');
+      highlightBtn.className = 'fmt-btn highlight-btn';
+      highlightBtn.textContent = 'H';
+      highlightBtn.title = 'Cycle highlight color';
+      highlightBtn.style.background = n.highlight || 'var(--node-fill)';
+      highlightBtn.addEventListener('mousedown', e => e.stopPropagation());
+      highlightBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        pushHistory();
+        const idx = highlightColors.indexOf(n.highlight);
+        n.highlight = highlightColors[(idx + 1) % highlightColors.length];
+        render();
+        saveState();
+      });
+      highlightWrap.appendChild(highlightBtn);
+
+      const picker = document.createElement('div');
+      picker.className = 'highlight-picker';
+      const pickerInner = document.createElement('div');
+      pickerInner.className = 'highlight-picker-inner';
+      highlightColors.forEach(color => {
+        const sw = document.createElement('div');
+        sw.className = 'color-swatch' + (color === null ? ' none-swatch' : '') + (n.highlight === color ? ' active' : '');
+        if(color) sw.style.background = color;
+        sw.title = color || 'No highlight';
+        sw.addEventListener('mousedown', e => e.stopPropagation());
+        sw.addEventListener('click', e => {
+          e.stopPropagation();
+          pushHistory();
+          n.highlight = color;
+          render();
+          saveState();
+        });
+        pickerInner.appendChild(sw);
+      });
+      picker.appendChild(pickerInner);
+      highlightWrap.appendChild(picker);
+
+      const shapeWrap = document.createElement('div');
+      shapeWrap.className = 'shape-wrap';
+      toolbar.appendChild(shapeWrap);
+
+      const shapeBtn = document.createElement('div');
+      shapeBtn.className = 'fmt-btn shape-btn';
+      shapeBtn.textContent = '◇';
+      shapeBtn.title = 'Cycle box shape';
+      shapeBtn.addEventListener('mousedown', e => e.stopPropagation());
+      shapeBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        pushHistory();
+        const keys = Object.keys(SHAPES);
+        const idx = keys.indexOf(n.shape || 'rounded');
+        n.shape = keys[(idx + 1) % keys.length];
+        render();
+        saveState();
+      });
+      shapeWrap.appendChild(shapeBtn);
+
+      const shapePicker = document.createElement('div');
+      shapePicker.className = 'shape-picker';
+      const shapePickerInner = document.createElement('div');
+      shapePickerInner.className = 'shape-picker-inner';
+      Object.keys(SHAPES).forEach(key => {
+        const def = SHAPES[key];
+        const sw = document.createElement('div');
+        sw.className = 'shape-swatch' + ((n.shape || 'rounded') === key ? ' active' : '');
+        sw.style.borderRadius = def.borderRadius;
+        sw.style.clipPath = def.clipPath;
+        sw.title = def.label;
+        sw.addEventListener('mousedown', e => e.stopPropagation());
+        sw.addEventListener('click', e => {
+          e.stopPropagation();
+          pushHistory();
+          n.shape = key;
+          render();
+          saveState();
+        });
+        shapePickerInner.appendChild(sw);
+      });
+      shapePicker.appendChild(shapePickerInner);
+      shapeWrap.appendChild(shapePicker);
+
+      const handle = document.createElement('div');
+      handle.className = 'handle';
+      handle.title = 'Drag to connect';
+      toolbar.appendChild(handle);
+
+      const resizeHandle = document.createElement('div');
+      resizeHandle.className = 'resize-handle';
+      resizeHandle.title = 'Drag to resize';
+      el.appendChild(resizeHandle);
+      resizeHandle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX, startY = e.clientY;
+        const startW = el.offsetWidth, startH = el.offsetHeight;
+        let moved = false;
+        let historyPushed = false;
+        const onMove = (ev) => {
+          if(!historyPushed){ pushHistory(); historyPushed = true; }
+          moved = true;
+          const newW = Math.max(80, startW + (ev.clientX - startX) / zoom);
+          const newH = Math.max(44, startH + (ev.clientY - startY) / zoom);
+          n.width = newW;
+          n.height = newH;
+          el.classList.add('sized');
+          el.style.width = newW + 'px';
+          el.style.height = newH + 'px';
+          el.style.maxWidth = 'none';
+          updateLinesFor(n.id);
+        };
+        const onUp = () => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          if(moved){
+            render();
+            saveState();
+          }
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+
+      // dragging node
+      el.addEventListener('mousedown', (e) => {
+        if(e.target === handle || e.target === del || e.target === resizeHandle) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const wrapRect = wrap.getBoundingClientRect();
+        let moved = false;
+        let historyPushed = false;
+        const onMove = (ev) => {
+          if(!historyPushed){ pushHistory(); historyPushed = true; }
+          moved = true;
+          el.classList.add('dragging');
+          n.x = (ev.clientX - wrapRect.left - panX) / zoom;
+          n.y = (ev.clientY - wrapRect.top - panY) / zoom;
+          el.style.left = n.x + 'px';
+          el.style.top = n.y + 'px';
+          updateLinesFor(n.id);
+        };
+        const onUp = () => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          if(moved){
+            el.classList.remove('dragging');
+            render();
+            saveState();
+          }
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+
+      // select the node (click doesn't fire after an actual drag/edit, since those stop propagation or don't move focus)
+      el.addEventListener('click', (e) => {
+        selectedNodeId = n.id;
+        if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        nodesLayer.querySelectorAll('.node.selected').forEach(other => other.classList.remove('selected'));
+        el.classList.add('selected');
+      });
+
+      // rename
+      el.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        pushHistory();
+        const ta = document.createElement('textarea');
+        ta.value = n.text;
+        ta.style.fontWeight = n.bold ? '800' : 'normal';
+        content.replaceChild(ta, span);
+        ta.focus();
+        ta.select();
+        const commit = () => {
+          n.text = ta.value.trim() || 'Untitled';
+          render();
+          saveState();
+        };
+        ta.addEventListener('blur', commit);
+        ta.addEventListener('keydown', (ke) => {
+          if((ke.ctrlKey || ke.metaKey) && ke.key.toLowerCase() === 'b'){
+            ke.preventDefault();
+            n.bold = !n.bold;
+            ta.style.fontWeight = n.bold ? '800' : 'normal';
+            saveState();
+            return;
+          }
+          if(ke.key === 'Enter' && !ke.shiftKey){ ke.preventDefault(); ta.blur(); }
+          if(ke.key === 'Escape'){ ta.value = n.text; ta.blur(); }
+        });
+      });
+
+      // connecting
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const wrapRect = wrap.getBoundingClientRect();
+        const temp = document.createElementNS('http://www.w3.org/2000/svg','path');
+        temp.setAttribute('stroke', 'var(--gold)');
+        temp.setAttribute('stroke-width', '1.8');
+        temp.setAttribute('fill', 'none');
+        temp.setAttribute('stroke-dasharray', '4 3');
+        svg.appendChild(temp);
+
+        const onMove = (ev) => {
+          const x = (ev.clientX - wrapRect.left - panX) / zoom;
+          const y = (ev.clientY - wrapRect.top - panY) / zoom;
+          temp.setAttribute('d', `M ${n.x} ${n.y} L ${x} ${y}`);
+        };
+        const onUp = (ev) => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          temp.remove();
+          const target = document.elementFromPoint(ev.clientX, ev.clientY);
+          const targetNodeEl = target && target.closest('.node');
+          if(targetNodeEl){
+            const targetId = parseInt(targetNodeEl.dataset.id, 10);
+            addLink(n.id, targetId);
+          }
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+
+      nodesLayer.appendChild(el);
+      if(shapeDef.forceSquare && !n.width && !n.height){
+        const scale = shapeDef.scale || 1;
+        const diameter = Math.max(el.offsetWidth, el.offsetHeight, 70) * scale;
+        el.style.width = diameter + 'px';
+        el.style.height = diameter + 'px';
+        el.style.maxWidth = 'none';
+        nodeSizes[n.id] = { w: diameter, h: diameter };
+      } else {
+        nodeSizes[n.id] = { w: el.offsetWidth, h: el.offsetHeight };
+      }
+    });
+
+    // render lines, now that node sizes are known, so they can curl around obstacles
+    svg.innerHTML = '';
+    links.forEach(l => {
+      const n1 = getNode(l.a), n2 = getNode(l.b);
+      if(!n1 || !n2) return;
+      const obstacles = otherNodesAsObstacles(l.a, l.b);
+      const { d, dotX, dotY } = pathBetween(n1, n2, obstacles);
+      const style = LINE_STYLES[l.style] || LINE_STYLES.solid;
+
+      const hit = document.createElementNS('http://www.w3.org/2000/svg','path');
+      hit.setAttribute('d', d);
+      hit.setAttribute('class', 'hit');
+      hit.setAttribute('stroke', 'transparent');
+      hit.setAttribute('stroke-width', '14');
+      hit.setAttribute('fill', 'none');
+      hit.addEventListener('click', (e) => {
+        if(e.shiftKey){
+          pushHistory();
+          l.style = currentStyleKey;
+          render();
+          saveState();
+        } else {
+          removeLink(l.a, l.b);
+        }
+      });
+      svg.appendChild(hit);
+
+      const vis = document.createElementNS('http://www.w3.org/2000/svg','path');
+      vis.setAttribute('d', d);
+      vis.setAttribute('class', 'visible');
+      vis.setAttribute('stroke-width', style.width);
+      if(style.dash) vis.setAttribute('stroke-dasharray', style.dash);
+      else vis.removeAttribute('stroke-dasharray');
+      svg.appendChild(vis);
+
+      const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      dot.setAttribute('cx', dotX); dot.setAttribute('cy', dotY); dot.setAttribute('r', 2.2);
+      dot.setAttribute('class', 'mid');
+      svg.appendChild(dot);
+    });
+  }
+
+  function updateLinesFor(nodeId){
+    // cheap redraw of only the lines touching the node being dragged/resized
+    const paths = svg.querySelectorAll('path');
+    const circles = svg.querySelectorAll('circle.mid');
+    links.forEach((l, i) => {
+      const n1 = getNode(l.a), n2 = getNode(l.b);
+      if(!n1 || !n2) return;
+      if(l.a === nodeId || l.b === nodeId){
+        const obstacles = otherNodesAsObstacles(l.a, l.b);
+        const { d, dotX, dotY } = pathBetween(n1, n2, obstacles);
+        paths[i*2] && paths[i*2].setAttribute('d', d);
+        paths[i*2+1] && paths[i*2+1].setAttribute('d', d);
+        if(circles[i]){
+          circles[i].setAttribute('cx', dotX);
+          circles[i].setAttribute('cy', dotY);
+        }
+      }
+    });
+  }
+
+  wrap.addEventListener('dblclick', (e) => {
+    if(drawMode) return;
+    if(e.target.closest('.node')) return;
+    const rect = wrap.getBoundingClientRect();
+    const x = (e.clientX - rect.left - panX) / zoom;
+    const y = (e.clientY - rect.top - panY) / zoom;
+    addNode(x, y, 'New idea', nodes.length === 0);
+  });
+
+  // clicking empty canvas deselects the current node
+  wrap.addEventListener('click', (e) => {
+    if(e.target.closest('.node')) return;
+    if(selectedNodeId !== null){
+      selectedNodeId = null;
+      nodesLayer.querySelectorAll('.node.selected').forEach(el => el.classList.remove('selected'));
+    }
+  });
+
+  // pan the canvas by dragging empty space, or draw a stroke if draw mode is on
+  wrap.addEventListener('mousedown', (e) => {
+    if(e.target.closest('.node')) return;
+    if(e.button !== 0) return;
+
+    if(drawMode){
+      e.preventDefault();
+      const rect = wrap.getBoundingClientRect();
+      const toWorld = (ev) => ({
+        x: (ev.clientX - rect.left - panX) / zoom,
+        y: (ev.clientY - rect.top - panY) / zoom
+      });
+
+      if(penTool === 'eraser'){
+        let erasedAny = false;
+        let historyPushed = false;
+        const eraseAt = (pt) => {
+          const hits = strokes.some(s => s.points.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) <= currentEraserSize));
+          if(!hits) return;
+          if(!historyPushed){ pushHistory(); historyPushed = true; }
+          eraseNearPoint(pt, currentEraserSize);
+          erasedAny = true;
+          renderInk();
+        };
+        eraseAt(toWorld(e));
+        const onMove = (ev) => eraseAt(toWorld(ev));
+        const onUp = () => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          if(erasedAny) saveState();
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        return;
+      }
+
+      const stroke = { tool: penTool, color: currentPenColor, width: currentPenWidth, points: [toWorld(e)] };
+      const v = strokeVisuals(stroke.tool, stroke.color, stroke.width);
+      const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pathEl.setAttribute('stroke', v.stroke);
+      pathEl.setAttribute('stroke-width', v.strokeWidth);
+      pathEl.setAttribute('fill', 'none');
+      pathEl.setAttribute('stroke-linecap', v.cap);
+      pathEl.setAttribute('stroke-linejoin', 'round');
+      pathEl.setAttribute('opacity', v.opacity);
+      pathEl.style.mixBlendMode = v.blend;
+      pathEl.setAttribute('d', strokeToPath(stroke.points));
+      ink.appendChild(pathEl);
+
+      const MIN_POINT_DIST = 2.5; // world units — skips redundant points from dense mousemove sampling
+      const onMove = (ev) => {
+        const pt = toWorld(ev);
+        const last = stroke.points[stroke.points.length - 1];
+        if(Math.hypot(pt.x - last.x, pt.y - last.y) < MIN_POINT_DIST) return;
+        stroke.points.push(pt);
+        pathEl.setAttribute('d', strokeToPath(stroke.points));
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if(stroke.points.length > 1){
+          pushHistory();
+          strokes.push(stroke);
+          saveState();
+        } else {
+          pathEl.remove();
+        }
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      return;
+    }
+
+    const startX = e.clientX, startY = e.clientY;
+    const startPanX = panX, startPanY = panY;
+    wrap.classList.add('panning');
+    let moved = false;
+    const onMove = (ev) => {
+      panX = startPanX + (ev.clientX - startX);
+      panY = startPanY + (ev.clientY - startY);
+      moved = true;
+      applyPan();
+    };
+    const onUp = () => {
+      wrap.classList.remove('panning');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if(moved) saveState();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // zoom with the scroll wheel, keeping the point under the cursor fixed
+  let zoomSaveTimer = null;
+  wrap.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = wrap.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const worldX = (mouseX - panX) / zoom;
+    const worldY = (mouseY - panY) / zoom;
+
+    const zoomFactor = Math.exp(-e.deltaY * 0.0015);
+    const newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom * zoomFactor));
+
+    panX = mouseX - worldX * newZoom;
+    panY = mouseY - worldY * newZoom;
+    zoom = newZoom;
+    applyPan();
+
+    clearTimeout(zoomSaveTimer);
+    zoomSaveTimer = setTimeout(saveState, 300);
+  }, { passive: false });
+
+  document.getElementById('addBtn').addEventListener('click', () => {
+    if(drawMode) setDrawMode(false);
+    const rect = wrap.getBoundingClientRect();
+    const x = (rect.width/2 - panX) / zoom + (Math.random()*160-80);
+    const y = (rect.height/2 - panY) / zoom + (Math.random()*160-80);
+    addNode(x, y, 'New idea', nodes.length === 0);
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', async () => {
+    if(nodes.length === 0) return;
+    if(await showConfirm('Clear the whole board?')){
+      pushHistory();
+      nodes = []; links = []; render(); saveState();
+    }
+  });
+
+  document.getElementById('resetViewBtn').addEventListener('click', () => {
+    panX = 0; panY = 0; zoom = 1;
+    applyPan();
+    saveState();
+  });
+
+  // toggle draw mode
+  const drawToggleBtn = document.getElementById('drawToggleBtn');
+  function setDrawMode(on){
+    drawMode = on;
+    drawToggleBtn.classList.toggle('active', drawMode);
+    wrap.classList.toggle('draw-mode', drawMode);
+    ink.classList.toggle('active', drawMode);
+    ink.style.pointerEvents = drawMode ? 'auto' : 'none';
+  }
+  drawToggleBtn.addEventListener('click', () => {
+    setDrawMode(!drawMode);
+  });
+
+  // avoid accidentally adding a node from a double-click while sketching
+  ink.addEventListener('dblclick', (e) => {
+    if(drawMode) e.stopPropagation();
+  });
+
+  document.getElementById('undoStrokeBtn').addEventListener('click', () => {
+    if(strokes.length === 0) return;
+    strokes.pop();
+    renderInk();
+    saveState();
+  });
+
+  document.getElementById('clearDrawBtn').addEventListener('click', async () => {
+    if(strokes.length === 0) return;
+    if(await showConfirm('Clear all drawings?')){
+      pushHistory();
+      strokes = [];
+      renderInk();
+      saveState();
+    }
+  });
+
+  // Ctrl+Z / Cmd+Z to undo the previous action
+  document.addEventListener('keydown', (e) => {
+    if(e.key.toLowerCase() !== 'z' || !(e.ctrlKey || e.metaKey) || e.shiftKey) return;
+    const activeTag = document.activeElement && document.activeElement.tagName;
+    if(activeTag === 'TEXTAREA' || activeTag === 'INPUT') return;
+    e.preventDefault();
+    undo();
+  });
+
+  // Tab on a selected node creates a connected child node
+  document.addEventListener('keydown', (e) => {
+    if(e.key !== 'Tab') return;
+    if(selectedNodeId === null) return;
+    const activeTag = document.activeElement && document.activeElement.tagName;
+    if(activeTag === 'TEXTAREA' || activeTag === 'INPUT') return;
+    const parent = getNode(selectedNodeId);
+    if(!parent) return;
+    e.preventDefault();
+
+    const parentW = (nodeSizes[parent.id] && nodeSizes[parent.id].w) || 160;
+    const childCount = links.filter(l => l.a === parent.id || l.b === parent.id).length;
+    const childX = parent.x + parentW/2 + 150;
+    const childY = parent.y + childCount * 90;
+
+    pushHistory();
+    const child = addNode(childX, childY, 'New idea', false, true);
+    addLink(parent.id, child.id, true);
+    selectedNodeId = child.id;
+    render();
+  });
+
+  // drag the sidebar divider to resize it (buttons/text scale proportionally)
+  sidebarResize.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+    const onMove = (ev) => {
+      sidebarWidth = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, startWidth - (ev.clientX - startX)));
+      applySidebarWidth();
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      saveState();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // drag below the toolbar to resize it (buttons/text scale proportionally)
+  toolbarResize.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startScale = toolbarScale;
+    const onMove = (ev) => {
+      const delta = (ev.clientY - startY) / 60; // 60px of drag ≈ full scale step
+      toolbarScale = Math.max(TOOLBAR_SCALE_MIN, Math.min(TOOLBAR_SCALE_MAX, startScale + delta));
+      applyToolbarScale();
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      saveState();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // load saved board, or seed a fresh one
+  window.addEventListener('load', async () => {
+    buildSidebar();
+    buildPenControls();
+    const hadSaved = await loadState();
+    applySidebarWidth();
+    applyToolbarScale();
+    if(hadSaved){
+      render();
+      setSavedIndicator('saved');
+    } else {
+      const rect = wrap.getBoundingClientRect();
+      addNode(rect.width/2 - panX, rect.height/2 - panY, 'Main idea', true);
+    }
+  });
+})();
+</script>
+</body>
+</html>
