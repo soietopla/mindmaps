@@ -212,8 +212,7 @@
     pointer-events:none;
     transition: opacity .15s;
   }
-  .node:hover .node-toolbar{ opacity:1; pointer-events:auto; }
-  .node.force-toolbar .node-toolbar{ opacity:1; pointer-events:auto; }
+  .node.selected .node-toolbar{ opacity:1; pointer-events:auto; }
   .handle{
     width: 27px; height:27px;
     border-radius:50%;
@@ -590,11 +589,10 @@
   // Paste your own Firebase project's config here (see chat for setup steps).
   // Leave apiKey as "" to use the local-only fallback instead.
   const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyAttOdIGUR5zuA2fpdYWvVBo-mzBFqViTM",
-    authDomain: "mindmap-ae0db.firebaseapp.com",
-    databaseURL: "https://mindmap-ae0db-default-rtdb.firebaseio.com",
-    projectId: "mindmap-ae0db",
-    
+    apiKey: "",
+    authDomain: "",
+    databaseURL: "",
+    projectId: ""
   };
 
   if (window.storage) return; // already running inside a Claude.ai artifact — nothing to do
@@ -673,7 +671,6 @@
   let panX = 0, panY = 0;
   let zoom = 1;
   let selectedNodeId = null;
-  let hoverStickyId = null; // keeps a node's toolbar visible across a re-render triggered by its own buttons
 
   // resizable toolbar / sidebar
   const SIDEBAR_BASE = 206, SIDEBAR_MIN = 150, SIDEBAR_MAX = 420;
@@ -1124,9 +1121,7 @@
     nodes.forEach(n => {
       const shapeDef = SHAPES[n.shape] || SHAPES.rounded;
       const el = document.createElement('div');
-      el.className = 'node' + (n.root ? ' root' : '') + (n.width || n.height ? ' sized' : '') + (n.id === selectedNodeId ? ' selected' : '') + (n.id === hoverStickyId ? ' force-toolbar' : '');
-      el.addEventListener('mouseenter', () => { hoverStickyId = n.id; });
-      el.addEventListener('mouseleave', () => { if(hoverStickyId === n.id) hoverStickyId = null; });
+      el.className = 'node' + (n.root ? ' root' : '') + (n.width || n.height ? ' sized' : '') + (n.id === selectedNodeId ? ' selected' : '');
       el.style.left = n.x + 'px';
       el.style.top = n.y + 'px';
       if(n.width){ el.style.width = n.width + 'px'; el.style.maxWidth = 'none'; }
@@ -1683,6 +1678,7 @@
   // Tab on a selected node creates a connected child node
   document.addEventListener('keydown', (e) => {
     if(e.key !== 'Tab') return;
+    if(e.repeat) return; // ignore key auto-repeat from holding the key down — only the initial press should count
     if(selectedNodeId === null) return;
     const activeTag = document.activeElement && document.activeElement.tagName;
     if(activeTag === 'TEXTAREA' || activeTag === 'INPUT') return;
